@@ -22,5 +22,5 @@ dev_dependencies:
   # builds against ../protocol via a gitignored pubspec_overrides.yaml.
   openstrap_protocol:
     git:
-      url: https://github.com/OpenStrap/protocol.git
+      url: https://github.com/matsvarn/openband5-protocol.git
       ref: 02fc8e5f2310ded690a522cd9884bf51b4cdc7e1 # tip of protocol main
