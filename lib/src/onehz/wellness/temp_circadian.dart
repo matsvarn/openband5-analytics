@@ -99,13 +99,18 @@ const Map<String, _TempCal> _tempCal = {
   // keeps 78.7 %. The band is ~6× the 6.47-count between-night SD and ~1.4× the
   // 29.3-count corpus-wide circadian range, so ordinary rhythm survives it.
   'gen4': _TempCal('adc_counts', 0.10, 40.0),
-  // gen5 has NO measured band. The exports carry 106 (W5) and 933 (MG) non-zero
-  // skin-temp rows in total — not one night clears the 60-sample floor — so
-  // there is nothing to calibrate against. Scaling gen4's 40 counts by a
-  // counts-per-°C guess would be gen4's number wearing a gen5 badge, which is
-  // exactly what device.dart's contract forbids. Fill this in from gen5 nights,
-  // not from arithmetic.
-  'gen5': _TempCal('centi_c', 0.04, null),
+  // gen5's 250 centi-°C (2.5 °C): measured 2026-09-22 on the first real gen5
+  // corpus — the seven sleep windows of 2026-09-16…22 on mats' WHOOP 5.0
+  // (25.7k–34.1k samples/night). Gen5 skin temp is genuinely noisier than
+  // gen4's ADC stream (within-night SD 0.77–1.54 °C, so gen4-style bands of a
+  // few centi-degrees settle only ~half of any night — the units differ by
+  // ~100x and the noise is real, not a scaling slip). At 250 the five clean
+  // nights keep ≥0.94 of samples settled and the one night carrying a real
+  // ~4.3 °C cold segment (2026-09-21, off-body or cold strap mid-window)
+  // keeps 0.855 — above the 0.80 use gate, with the segment excluded from the
+  // mean it is for. It is ~4× the 0.63 °C between-night SD of nightly
+  // medians; 150 was tried and rejected (it failed a clean night at 0.796).
+  'gen5': _TempCal('centi_c', 0.04, 250.0),
 };
 
 /// A nightly skin-temp mean that knows how much of the night it is made of.

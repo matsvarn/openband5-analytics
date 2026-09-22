@@ -856,8 +856,39 @@ void main() {
       expect(m.value!.mean, closeTo(830.0, 1e-9));
     });
 
-    test('gen5 has no measured band and unknown families refuse', () {
-      for (final id in <String?>['gen5', null, '', 'gen6']) {
+    // One gen5 night in centi-°C: 8 h at 33.80 °C with a mid-window segment
+    // 4.30 °C colder — the shape of the real 2026-09-21 night whose cold
+    // segment the 250 centi-°C band was calibrated to exclude.
+    List<AdcSample> nightC({required int coldSec, int totalSec = 28800}) => [
+          for (var i = 0; i < totalSec; i++)
+            AdcSample(
+                i * 1000.0, (i >= 6000 && i < 6000 + coldSec) ? 2950.0 : 3380.0),
+        ];
+
+    test('gen5 has its own measured band, in centi-°C', () {
+      final m = nightlySkinTemp(nightC(coldSec: 0), deviceFamily: 'gen5');
+      expect(m.present, isTrue, reason: m.note);
+      expect(m.value!.settledFraction, 1.0);
+      expect(m.value!.mean, closeTo(3380.0, 1e-9));
+      expect(m.value!.unit, 'centi_c');
+    });
+
+    test('gen5 trims a real-depth cold segment out of the mean', () {
+      // 10 % of the night 4.3 °C cold: passes the 0.80 gate, segment excluded.
+      final m = nightlySkinTemp(nightC(coldSec: 2880), deviceFamily: 'gen5');
+      expect(m.present, isTrue, reason: m.note);
+      expect(m.value!.settledFraction, closeTo(0.90, 1e-9));
+      expect(m.value!.mean, closeTo(3380.0, 1e-9));
+    });
+
+    test('gen5 still refuses a mostly-cold night, one-sided like gen4', () {
+      final m = nightlySkinTemp(nightC(coldSec: 7200), deviceFamily: 'gen5');
+      expect(m.present, isFalse);
+      expect(m.note, startsWith('unsettled_skin_temp:settled=0.75'));
+    });
+
+    test('unknown families still refuse', () {
+      for (final id in <String?>[null, '', 'gen6']) {
         final m = nightlySkinTemp(night(coldSec: 0), deviceFamily: id);
         expect(m.present, isFalse, reason: 'family $id must not borrow gen4');
         expect(m.note, startsWith('unknown_device_family:'));
