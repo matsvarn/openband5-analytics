@@ -91,7 +91,11 @@ SleepCyclesResult detectSleepCycles(
     final m = (relSec / 60.0).floor();
     if (m < 0 || m >= nMin) continue;
     final v = rrMs[k];
-    if (v >= _rrMin && v <= _rrMax) bins[m].add(v);
+    // Out-of-range beats keep their SLOT as NaN: dropping them entirely would
+    // compact the bin and let `_rmssd` diff two beats that were never
+    // consecutive — one phantom pair per dropped beat (the straddle defect
+    // hrv_time.dart documents fixing). NaN pairs are skipped below.
+    bins[m].add(v >= _rrMin && v <= _rrMax ? v : double.nan);
   }
   for (var m = 0; m < nMin; m++) {
     perMin[m] = _rmssd(bins[m]);
@@ -149,7 +153,7 @@ double? _rmssd(List<double> rr) {
   var s = 0.0, n = 0;
   for (var i = 1; i < rr.length; i++) {
     final d = rr[i] - rr[i - 1];
-    if (d.abs() > _rrStep) continue; // drop ectopic jumps
+    if (d.isNaN || d.abs() > _rrStep) continue; // dropped beat or ectopic jump
     s += d * d;
     n++;
   }
