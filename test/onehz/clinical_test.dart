@@ -795,6 +795,102 @@ void main() {
       expect(m.present, isFalse);
       expect(m.note, contains('rmssd_refused:acf1='));
     });
+
+    // TWO CLEANERS, DELIBERATELY. The headline runs raw RR through
+    // _cleanWindowRuns (range + fixed ±20% local-median); hrvTime /
+    // nocturnalRmssd / hrvFreq consume correctRr (Lipponen–Tarvainen, adaptive
+    // dispersion thresholds + spline correction). MEASURED on the retained
+    // 7-night WHOOP 5 corpus (analysis/2026-09-22 hrv-divergence): the two
+    // agree to ≤3 ms on calm nights and diverge up to ~18 ms only through
+    // sustained artifact-burst windows — where Malik's fixed gate rejects the
+    // burst while correctRr's QD-scaled threshold inflates with the noise and
+    // accepts it. Feeding the headline through correctRr was measured and
+    // rejected: it inflates burst nights (58.2 → 76.4 ms on the divergent
+    // night). These tests pin both halves of that contract.
+    group('the two RR cleaners — pinned divergence', () {
+      // A clean sinus-rhythm series: 900 ms base + smooth breathing-scale
+      // modulation well inside ±20%. The modulation is deliberate: it keeps
+      // the successive diffs positively correlated (above the jitter floor)
+      // so these tests exercise the CLEANER agreement, not the refusal path.
+      List<double> cleanRr(int beats, {int seed = 5}) {
+        final rnd = math.Random(seed);
+        return [
+          for (var i = 0; i < beats; i++)
+            900 + 35 * math.sin(i / 8.0) + (rnd.nextDouble() - 0.5) * 8
+        ];
+      }
+
+      test('clean input: both paths land on the same nightly value', () {
+        // Six 5-min windows, ~300 beats each at ~950 ms mean.
+        final rr = <double>[], ts = <double>[];
+        var t = 0.0;
+        for (var w = 0; w < 6; w++) {
+          for (final v in cleanRr(300, seed: w + 1)) {
+            rr.add(v);
+            t += v;
+            ts.add(t);
+          }
+        }
+        const startSec = 1, endSec = 1900;
+        final headline = sleepSessionWindowedRmssd(rr, ts,
+            startSec: startSec, endSec: endSec);
+        expect(headline.present, isTrue);
+
+        final corr = correctRr(rr, rrTsMs: ts);
+        // Nothing to clean: a clean series keeps ~every beat on both sides.
+        expect(corr.droppedCount + corr.correctedCount,
+            lessThan(rr.length * 0.02));
+        final noc = nocturnalRmssd(corr.nn, corr.nnTimesMs);
+        expect(noc.present, isTrue);
+        // Homogeneous windows: mean-of-windows ≈ median-of-windows.
+        expect((headline.value! - noc.value!).abs(), lessThan(5.0),
+            reason:
+                'on a clean night the Malik headline and the correctRr-fed '
+                'robust estimator must agree — divergence is only licensed '
+                'for artifact bursts');
+      });
+
+      test('a sustained burst window does not move the headline', () {
+        final rr = <double>[], ts = <double>[];
+        var t = 0.0;
+        for (var w = 0; w < 5; w++) {
+          for (final v in cleanRr(300, seed: w + 11)) {
+            rr.add(v);
+            t += v;
+            ts.add(t);
+          }
+        }
+        final baseline = sleepSessionWindowedRmssd(List.of(rr), List.of(ts),
+            startSec: 1, endSec: 1500);
+        expect(baseline.present, isTrue);
+
+        // One 5-min window of alternating 500/1400 ms — the burst shape the
+        // corpus showed (motion/arrhythmia-looking stretches inside sleep).
+        // In-range beats, so ONLY the local-median gate can reject them.
+        for (var i = 0; i < 300; i++) {
+          final v = i.isEven ? 500.0 : 1400.0;
+          rr.add(v);
+          t += v;
+          ts.add(t);
+        }
+        final m = sleepSessionWindowedRmssd(rr, ts,
+            startSec: 1, endSec: 2100);
+        expect(m.present, isTrue);
+        expect(m.value!, closeTo(baseline.value!, baseline.value! * 0.05),
+            reason:
+                'the burst window must contribute nothing — Malik rejects '
+                'every alternating beat against its local median');
+
+        // The pinned OTHER half: correctRr does NOT reject the same burst —
+        // its dispersion-scaled threshold adapts to the noise level. That is
+        // exactly why the headline does not run on its output.
+        final corr = correctRr(rr, rrTsMs: ts);
+        expect(corr.nn.length, greaterThan(rr.length * 0.9),
+            reason:
+                'documents the blind spot: correctRr accepts a sustained '
+                'burst because QD inflates with it');
+      });
+    });
   });
 
   // The CALIBRATION of this scale (what a rest / active / hard / maximal day

@@ -364,6 +364,15 @@ Metric<double> nocturnalRmssd(
 /// distinct from [nocturnalRmssd], which uses cleaned NN +
 /// median-of-windows robustness.
 ///
+/// TWO CLEANERS, DELIBERATELY — do not "unify" this onto [correctRr]'s output.
+/// correctRr's dispersion-scaled threshold adapts to sustained noise: during a
+/// multi-minute artifact burst the local QD inflates and the burst passes as
+/// "normal". The fixed ±20% local-median gate below has no such blind spot.
+/// Measured on the retained 7-night WHOOP 5 corpus: the two paths agree to
+/// ≤3 ms on calm nights and diverge only via burst windows — where this
+/// cleaner is the honest side (58.2 vs 76.4 ms on the divergent night).
+/// The contract is pinned in clinical_test.dart's "two RR cleaners" group.
+///
 /// This is the nightly HEADLINE (→ `ln_rmssd` → readiness), so it refuses
 /// rather than approximates: absent when the successive differences fail
 /// [kNnDiffAcf1Floor].
