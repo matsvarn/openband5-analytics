@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Dependencies and the SDK live in the snapshot. No services need reconnecting.
+export PATH="$HOME/.local/bin:$PATH"
+dart --version

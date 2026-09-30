@@ -10,3 +10,6 @@ node_modules/
 # Local dev override redirecting sibling packages to in-tree checkouts.
 # Never committed — pubspec.yaml pins real SHAs so CI and fresh clones work.
 pubspec_overrides.yaml
+
+# Orb portal metadata is local to each remote machine.
+.amp/portals/*

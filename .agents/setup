@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# Match the minimum SDK exercised by CI rather than a moving stable release.
+dart_version=3.5.0
+sdk_parent="$HOME/.local/share/openstrap-analytics"
+sdk_dir="$sdk_parent/dart-$dart_version/dart-sdk"
+
+echo "Checking system prerequisites"
+started=$SECONDS
+missing=()
+for package in ca-certificates curl unzip git; do
+  if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then
+    missing+=("$package")
+  fi
+done
+if ((${#missing[@]})); then
+  sudo apt-get update
+  sudo apt-get install -y "${missing[@]}"
+fi
+echo "System prerequisites ready in $((SECONDS - started))s"
+
+echo "Preparing Dart $dart_version"
+started=$SECONDS
+if [[ ! -x "$sdk_dir/bin/dart" ]]; then
+  mkdir -p "$sdk_parent"
+  staging=$(mktemp -d "$sdk_parent/.dart-install.XXXXXX")
+  trap 'rm -rf "$staging"' EXIT
+  archive_url="https://storage.googleapis.com/dart-archive/channels/stable/release/$dart_version/sdk/dartsdk-linux-x64-release.zip"
+  curl --fail --location --retry 3 "$archive_url" -o "$staging/sdk.zip"
+  curl --fail --location --retry 3 "$archive_url.sha256sum" -o "$staging/sdk.sha256sum"
+  checksum=$(awk '{print $1}' "$staging/sdk.sha256sum")
+  echo "$checksum  $staging/sdk.zip" | sha256sum --check
+  unzip -q "$staging/sdk.zip" -d "$staging"
+  mkdir -p "$(dirname "$sdk_dir")"
+  mv "$staging/dart-sdk" "$sdk_dir"
+  rm -rf "$staging"
+  trap - EXIT
+fi
+
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$sdk_dir/bin/dart" "$HOME/.local/bin/dart"
+# Amp and supervised services start in separate non-interactive login shells.
+profile_marker='# OpenStrap analytics orb toolchain'
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<'EOF'
+
+# OpenStrap analytics orb toolchain
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+EOF
+fi
+export PATH="$HOME/.local/bin:$PATH"
+dart --version
+echo "Dart ready in $((SECONDS - started))s"
+
+echo "Resolving Dart dependencies"
+started=$SECONDS
+dart pub get
+echo "Dependencies ready in $((SECONDS - started))s"
