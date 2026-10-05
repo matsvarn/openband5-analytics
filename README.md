@@ -125,6 +125,31 @@ into — never an assertion. `human/event_detection.dart`'s doc comment calls th
 central honesty rule," and it earns the name — guessing a cause outright is a bug here,
 not a feature, no matter how tempting the plausible-looking headline is.
 
+## Worktree setup
+
+```bash
+bash scripts/setup.sh
+bash scripts/dart.sh analyze --fatal-infos
+bash scripts/dart.sh test --concurrency=2 --reporter=expanded
+```
+
+Setup works from any current directory and prepares the native Dart package.
+It uses an existing SDK from `DART_BIN`, PATH, the workspace Flutter 3.41.6
+installation. If missing, install Dart
+from <https://dart.dev/get-dart> or Flutter from <https://docs.flutter.dev/install>,
+then set `DART_BIN` to its Dart executable. The package supports Dart ^3.5.0;
+CI checks 3.5.0 and stable. No SDK installation or profile edit runs automatically.
+
+This library keeps pubspec.lock untracked. The first setup resolves dependencies;
+subsequent setup enforces that checkout's lockfile. Dependency upgrades require
+an explicit `bash scripts/dart.sh pub get` before running checks.
+
+Use a separate worktree per task. Its dependency resolution and generated files
+stay local. There are no development services or ports to isolate. Keep private
+captures outside Git and outside automatic setup. For T3, import `t3.json`
+actions separately for each project/environment, with Setup automatic on worktree
+creation and waiting before the agent starts. See AGENTS.md for the parallel rules.
+
 ## Tests
 
 ```bash
